@@ -1,0 +1,47 @@
+
+num_players(8).
+board_size(52). 
+tokens_per_player(4).
+:- dynamic token/3.
+init_game :-
+    retractall(token(_, _, _)),
+    num_players(N),
+    tokens_per_player(M),
+    forall(between(1, N, P),
+           forall(between(1, M, T),
+                  assertz(token(P, T, -1)))).
+roll_dice(Dice) :-
+    random_between(1, 6, Dice).
+move_token(Player, TokenID, Dice) :-
+    token(Player, TokenID, Pos),
+    NewPos is (Pos + Dice) mod 52,
+    retract(token(Player, TokenID, Pos)),
+    assertz(token(Player, TokenID, NewPos)),
+    format('Player ~w moved token ~w from ~w to ~w.~n', [Player, TokenID, Pos, NewPos]).
+choose_token(Player, Dice, TokenID) :-
+    token(Player, TokenID, Pos),
+    (Pos \= -1 ; Dice = 6), 
+    !.
+player_turn(Player) :-
+    roll_dice(Dice),
+    format('Player ~w rolled a ~w.~n', [Player, Dice]),
+    ( choose_token(Player, Dice, TokenID)
+    -> (
+         ( token(Player, TokenID, -1)
+         -> NewPos is 0,
+            retract(token(Player, TokenID, -1)),
+            assertz(token(Player, TokenID, NewPos)),
+            format('Player ~w brings token ~w onto the board at position 0.~n', [Player, TokenID])
+         ; move_token(Player, TokenID, Dice)
+         )
+       )
+    ; format('Player ~w has no valid moves.~n', [Player])
+    ),
+    (Dice = 6 -> player_turn(Player) ; true).
+play_round :-
+    num_players(N),
+    forall(between(1, N, P), player_turn(P)).
+start_game :-
+    init_game,
+    play_round.
+
