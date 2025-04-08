@@ -1,47 +1,58 @@
 
-num_players(8).
-board_size(52). 
-tokens_per_player(4).
-:- dynamic token/3.
-init_game :-
-    retractall(token(_, _, _)),
-    num_players(N),
-    tokens_per_player(M),
-    forall(between(1, N, P),
-           forall(between(1, M, T),
-                  assertz(token(P, T, -1)))).
-roll_dice(Dice) :-
-    random_between(1, 6, Dice).
-move_token(Player, TokenID, Dice) :-
-    token(Player, TokenID, Pos),
-    NewPos is (Pos + Dice) mod 52,
-    retract(token(Player, TokenID, Pos)),
-    assertz(token(Player, TokenID, NewPos)),
-    format('Player ~w moved token ~w from ~w to ~w.~n', [Player, TokenID, Pos, NewPos]).
-choose_token(Player, Dice, TokenID) :-
-    token(Player, TokenID, Pos),
-    (Pos \= -1 ; Dice = 6), 
+total_players(8).
+pieces_per_user(4).
+circle_length(52).
+
+:- dynamic piece/3.
+setup_ludo :-
+    retractall(piece(_, _, _)),
+    total_players(Count),
+    pieces_per_user(Each),
+    forall(between(1, Count, U),
+           forall(between(1, Each, PID),
+                  assertz(piece(U, PID, -1)))).
+
+
+throw_die(Value) :-
+    random_between(1, 6, Value).
+
+launch_piece(U, PID) :-
+    retract(piece(U, PID, -1)),
+    assertz(piece(U, PID, 0)),
+    format('User ~w placed piece ~w onto the board at position 0.~n', [U, PID]).
+
+step_forward(U, PID, Moves) :-
+    piece(U, PID, Old),
+    New is (Old + Moves) mod 52,
+    retract(piece(U, PID, Old)),
+    assertz(piece(U, PID, New)),
+    format('User ~w advanced piece ~w from ~w to ~w.~n', [U, PID, Old, New]).
+
+select_active_piece(U, DiceRoll, PID) :-
+    piece(U, PID, Pos),
+    (Pos \= -1 ; DiceRoll = 6),
     !.
-player_turn(Player) :-
-    roll_dice(Dice),
-    format('Player ~w rolled a ~w.~n', [Player, Dice]),
-    ( choose_token(Player, Dice, TokenID)
-    -> (
-         ( token(Player, TokenID, -1)
-         -> NewPos is 0,
-            retract(token(Player, TokenID, -1)),
-            assertz(token(Player, TokenID, NewPos)),
-            format('Player ~w brings token ~w onto the board at position 0.~n', [Player, TokenID])
-         ; move_token(Player, TokenID, Dice)
-         )
+
+
+execute_turn(U) :-
+    throw_die(Roll),
+    format('User ~w rolled a ~w.~n', [U, Roll]),
+    ( select_active_piece(U, Roll, PID)
+    -> ( piece(U, PID, -1)
+         -> launch_piece(U, PID)
+         ;  step_forward(U, PID, Roll)
        )
-    ; format('Player ~w has no valid moves.~n', [Player])
+    ; format('User ~w has no legal actions.~n', [U])
     ),
-    (Dice = 6 -> player_turn(Player) ; true).
-play_round :-
-    num_players(N),
-    forall(between(1, N, P), player_turn(P)).
-start_game :-
-    init_game,
-    play_round.
+    (Roll = 6 -> execute_turn(U) ; true). 
+
+
+cycle_all_players :-
+    total_players(Count),
+    forall(between(1, Count, U), execute_turn(U)).
+
+
+begin_ludo :-
+    setup_ludo,
+    cycle_all_players.
 
